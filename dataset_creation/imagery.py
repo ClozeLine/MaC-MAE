@@ -1,6 +1,10 @@
 import os
 os.environ["GDAL_DISABLE_READDIR_ON_OPEN"] = "EMPTY_DIR"
 os.environ["PROJ_IGNORE_CELESTIAL_BODY"] = "YES"
+os.environ["GDAL_HTTP_MULTIPLEX"] = "YES"
+os.environ["GDAL_HTTP_VERSION"] = "2"
+os.environ["GDAL_HTTP_MERGE_CONSECUTIVE_RANGES"] = "YES"
+os.environ["VSI_CACHE"] = "TRUE"
 
 import numpy as np
 import rasterio

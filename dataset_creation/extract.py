@@ -1,12 +1,15 @@
 import json
 import hashlib
-import subprocess
-from datetime import datetime
-from pathlib import Path
-
+import threading
+import time
 import numpy as np
 import pandas as pd
 import rasterio
+import subprocess
+
+from datetime import datetime
+from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from PIL import Image
 from tqdm import tqdm
 
@@ -19,12 +22,22 @@ OUT_DIR = ROOT / "data" / "crops"
 METADATA_CSV = OUT_DIR / "metadata.csv"
 CONTEXT = 3.0
 OUT_PX = 1024
+WORKERS = 16
+_local = threading.local()
 
 FIELDS = ["crater_id", "lat", "lon", "diam_km", "label", "quad", "status", "error", "nodata_frac",
-          "crosses_quad", "side_km", "m_per_px", "p2", "p98", "mean", "std", "path"]
+          "crosses_quad", "side_km", "m_per_px", "p2", "p98", "mean", "std", "path", "seconds"]
+
+def get_ds(quad: str):
+    """Per-thread cache of open quads"""
+    if not hasattr(_local, "ds"):
+        _local.ds = {}
+    if quad not in _local.ds:
+        _local.ds[quad] = rasterio.open(quad_url(quad))
+    return _local.ds[quad]
 
 def write_manifest():
-    """Run settings. This is so data can be reproduced."""
+    """Run settings. This is so data can be reproduced"""
     path = OUT_DIR / "manifest.json"
     if path.exists():
         return
@@ -71,6 +84,16 @@ def already_done() -> set:
     metadata = pd.read_csv(METADATA_CSV) # noqa: PyCharm overload false positive
     return set(metadata.loc[metadata.status == "ok", "crater_id"])
 
+def process(row) -> dict:
+    base = dict(crater_id=row.crater_id, lat=row.lat, lon=row.lon, diam_km=row.diam_km,
+                label=int(row.label), quad=row.quad)
+    t0 = time.perf_counter()
+    try:
+        rec = base | extract_one(get_ds(row.quad), row)
+    except Exception as e:
+        rec = base | dict(status="error", error=repr(e))
+    return rec | dict(seconds=round(time.perf_counter() - t0, 2))
+
 def main(limit: int | None = None):
     (OUT_DIR / "images").mkdir(parents=True, exist_ok=True)
     write_manifest()
@@ -83,17 +106,15 @@ def main(limit: int | None = None):
         todo = todo.sample(min(limit, len(todo)), random_state=42)
     print(f"{len(band)} labelled craters, {len(todo)} to extract")
 
-    for quad, group in todo.groupby("quad"):
-        with rasterio.open(quad_url(quad)) as ds:
-            for row in tqdm(group.itertuples(), total=len(group), desc=quad):
-                base = dict(crater_id=row.crater_id, lat=row.lat, lon=row.lon, diam_km=row.diam_km,
-                            label=int(row.label), quad=quad)
-
-                try:
-                    rec = base | extract_one(ds, row)
-                except Exception as e:
-                    rec = base | dict(status="error", error=repr(e))
-                append_row(rec)
+    with ThreadPoolExecutor(WORKERS) as pool:
+        futures = [pool.submit(process, row) for row in todo.itertuples()]
+        try:
+            for f in tqdm(as_completed(futures), total=len(futures)):
+                append_row(f.result())
+        except KeyboardInterrupt:
+            print("\nStopping: cancelling queued craters (in-flight ones will finish)...")
+            pool.shutdown(cancel_futures=True)
+            raise
 
 if __name__ == "__main__":
-    main(limit=50)
+    main(limit=100)
