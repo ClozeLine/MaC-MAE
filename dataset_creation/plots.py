@@ -1,6 +1,10 @@
+import numpy as np
+import pandas as pd
 import rasterio
 import matplotlib.pyplot as plt
 from dataset_creation.imagery import read_crop, stretch, nodata_fraction, quad_url, quad_name
+from dataset_creation.extract import OUT_DIR, METADATA_CSV
+from PIL import Image
 
 def plot_sample(sample, n_per_class: int):
     """Grid with one column per class, rows sorted by diameter."""
@@ -16,3 +20,18 @@ def plot_sample(sample, n_per_class: int):
             ax.axis("off")
     plt.tight_layout()
     plt.show()
+
+def show_crop(path):
+    """Display an 16-bit crop with a 2-98% contrast stretch."""
+    img = np.array(Image.open(path))
+    lo, hi = stretch(img)
+    plt.imshow(img, cmap="gray", vmin=lo, vmax=hi)
+    plt.axis("off")
+    plt.show()
+
+if __name__ == "__main__":
+
+    meta = pd.read_csv(METADATA_CSV)
+    for row in meta[meta.status == "ok"].head(3).itertuples():
+        print(row.crater_id, f"class {row.label}", f"{row.diam_km} km", f"nd {row.nodata_frac:.0%}")
+        show_crop(OUT_DIR / row.path)
