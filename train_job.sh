@@ -14,11 +14,12 @@
 #SBATCH --output=slurm-%j.out
 
 HOURS=${1:?usage: sbatch --time=HH:00:00 train_job.sh HOURS}
-deadline=$(( $(date +%s) + HOURS * 3600 - 600 ))   # stop 10 mins early so the last epoch is saved
+module load cuda13.0/toolkit        # puts the NVIDIA driver library (libcuda) on the path for torch
+deadline=$(( $(date +%s) + HOURS * 3600 - 600 ))   # stop 10 minutes early so the last epoch is saved
 
 for seed in 0 1 2; do
     minutes=$(( (deadline - $(date +%s)) / 60 ))
     (( minutes < 5 )) && { echo "out of time; resubmit to continue"; break; }
-
+    # the venv's python directly: `uv run` may try to reach the internet, which compute nodes lack
     .venv/bin/python -m modeling.train --name "momo_s$seed" --seed "$seed" --max-minutes "$minutes"
 done
