@@ -3,11 +3,13 @@ os.environ["GDAL_DISABLE_READDIR_ON_OPEN"] = "EMPTY_DIR"
 os.environ["PROJ_IGNORE_CELESTIAL_BODY"] = "YES"
 os.environ["GDAL_HTTP_MULTIPLEX"] = "YES"
 os.environ["GDAL_HTTP_VERSION"] = "2"
+os.environ["GDAL_HTTP_MAX_RETRY"] = "5"
+os.environ["GDAL_HTTP_RETRY_DELAY"] = "1"
 os.environ["GDAL_HTTP_MERGE_CONSECUTIVE_RANGES"] = "YES"
 os.environ["VSI_CACHE"] = "TRUE"
 
 import numpy as np
-import rasterio
+from rasterio.enums import Resampling
 from rasterio.warp import transform
 from rasterio.windows import from_bounds
 
@@ -43,13 +45,16 @@ def read_crop(ds, lat: float, lon: float, diam_km: float,
     )
 
     # if img extends out of bounds, fill it with NODATA so it can be tracked
-    img = ds.read(1, window=window, out_shape=(out_px, out_px), boundless=crosses, fill_value=-32768)
+    img = ds.read(1, window=window, out_shape=(out_px, out_px), boundless=crosses, fill_value=-32768, resampling=Resampling.nearest)
 
     return img.view(np.uint16), crosses
 
 def stretch(img: np.ndarray) -> tuple[float, float]:
     """2-98 percentile of valid pixels, for display"""
-    return tuple(np.percentile(img[img != NODATA], [2, 98]))
+    valid = img[img != NODATA]
+    if valid.size == 0:
+        return 0.0, 1.0
+    return tuple(np.percentile(valid, [2, 98]))
 
 def nodata_fraction(img: np.ndarray) -> float:
     """Share of pixels with no CTX coverage."""

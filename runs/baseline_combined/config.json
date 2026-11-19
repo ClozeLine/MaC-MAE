@@ -1,0 +1,22 @@
+{
+  "type": "baseline",
+  "name": "combined",
+  "model": "logistic_regression",
+  "class_weight": "balanced",
+  "numeric": [
+    "log_diam"
+  ],
+  "categorical": [
+    "period"
+  ],
+  "git_commit": "f3e30e17080c1b7ca3ff94c24c3ba8655493eb52-dirty",
+  "versions": {
+    "python": "3.13.6",
+    "numpy": "2.5.4",
+    "pandas": "3.1.1",
+    "scikit-learn": "1.9.1"
+  },
+  "host": "archbox",
+  "started": "2026-11-19T14:50:22",
+  "finished": "2026-11-19T14:50:22"
+}

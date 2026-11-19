@@ -117,4 +117,4 @@ def main(limit: int | None = None):
             raise
 
 if __name__ == "__main__":
-    main(limit=100)
+    main(limit=None)

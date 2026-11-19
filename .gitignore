@@ -1,6 +1,12 @@
 # Project data: crops and the R&H catalogue are published separately (Zenodo / R&H website)
 data/
 
+# Model weights and large run outputs
+checkpoints/
+runs/*/checkpoints/
+runs/*/embeddings.npy
+slurm-*.out
+
 # OS junk
 .DS_Store
 __MACOSX/
