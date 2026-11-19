@@ -41,6 +41,7 @@ DEFAULTS = dict(                     # MOMO main_finetune.py defaults unless not
     epochs=100, patience=10,         # MOMO: patience 5; 10 is less likely to stop on noise
     batch_size=32, lr=1e-4, min_lr=1e-6, warmup_epochs=0,
     weight_decay=0.05, layer_decay=0.75, drop_path=0.0, max_grad_norm=1.0,
+    label_smoothing=0.0,             # MAE fine-tuning recipe uses 0.1 (with drop_path 0.1)
     class_weights="balanced", select_on="macro_f1",   # MOMO selects on val loss; macro-F1 is our metric
     workers=8, amp=True, seed=0,
 )
@@ -129,7 +130,8 @@ def train(cfg: dict, name: str, max_minutes: float | None):
     last_path, resuming = ckpt_dir / "last.pt", (ckpt_dir / "last.pt").exists()
     if resuming:
         saved = json.loads((out / "config.json").read_text())
-        changed = {k: (saved.get(k), v) for k, v in cfg.items() if saved.get(k) != v and k != "workers"}
+        changed = {k: (saved.get(k, DEFAULTS.get(k)), v) for k, v in cfg.items()      # settings added later
+                   if saved.get(k, DEFAULTS.get(k)) != v and k != "workers"}           # count as their default
         if changed:
             raise RuntimeError(f"settings differ from the run being resumed: {changed}")
 
@@ -145,7 +147,8 @@ def train(cfg: dict, name: str, max_minutes: float | None):
     optimizer = torch.optim.AdamW(param_groups(model, cfg["weight_decay"], cfg["layer_decay"]), lr=cfg["lr"])
     scaler = torch.amp.GradScaler("cuda", enabled=cfg["amp"] and device.type == "cuda")
     weights = class_weights(train_ds.labels) if cfg["class_weights"] == "balanced" else None
-    criterion = torch.nn.CrossEntropyLoss(weight=None if weights is None else weights.to(device))
+    criterion = torch.nn.CrossEntropyLoss(weight=None if weights is None else weights.to(device),
+                                          label_smoothing=cfg["label_smoothing"])   # val loss stays unsmoothed
 
     state = {"epoch": 0, "best": -math.inf, "best_epoch": -1, "bad_epochs": 0, "seconds": 0.0}
     if resuming:
