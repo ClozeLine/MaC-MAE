@@ -15,6 +15,7 @@
 
 HOURS=${1:?usage: sbatch --time=HH:00:00 train_job.sh HOURS}
 module load cuda13.0/toolkit        # puts the NVIDIA driver library (libcuda) on the path for torch
+export PYTHONUNBUFFERED=1           # write log lines immediately, so `tail -f` shows live progress
 deadline=$(( $(date +%s) + HOURS * 3600 - 600 ))   # stop 10 minutes early so the last epoch is saved
 
 for seed in 0 1 2; do
