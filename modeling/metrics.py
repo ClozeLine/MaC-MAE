@@ -36,7 +36,8 @@ def scores(y: np.ndarray, pred: np.ndarray, probs: np.ndarray | None = None) -> 
         "confusion": confusion_matrix(y, pred, labels=CLASSES).tolist(),             # rows = true, cols = predicted
     }
     if probs is not None:
-        out["log_loss"] = log_loss(y, probs, labels=CLASSES)
+        probs = np.asarray(probs, dtype=np.float64)
+        out["log_loss"] = log_loss(y, probs / probs.sum(axis=1, keepdims=True), labels=CLASSES)  # exact sum 1
     return out
 
 
